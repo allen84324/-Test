@@ -3,8 +3,8 @@
     <div class="full-width q-px-xl">
       <div class="q-mb-xl">
         <q-input v-model="tempData.name" label="姓名" />
-        <q-input v-model="tempData.age" label="年齡" />
-        <q-btn color="primary" class="q-mt-md">新增</q-btn>
+        <q-input v-model="tempData.age" label="年齡" type="number" />
+        <q-btn color="primary" class="q-mt-md" @click="createData">新增</q-btn>
       </div>
 
       <q-table
@@ -35,7 +35,7 @@
               :props="props"
               style="min-width: 120px"
             >
-              <div>{{ col.value }}</div>
+              <div>{{ props.row[col.field] }}</div>
             </q-td>
             <q-td class="text-right" auto-width v-if="tableButtons.length > 0">
               <q-btn
@@ -79,20 +79,12 @@
 
 <script setup lang="ts">
 import axios from 'axios';
-import { QTableProps } from 'quasar';
-import { ref } from 'vue';
-interface btnType {
-  label: string;
-  icon: string;
-  status: string;
-}
-const blockData = ref([
-  {
-    name: 'test',
-    age: 25,
-  },
-]);
-const tableConfig = ref([
+import { ref, onMounted } from 'vue';
+
+const API_BASE_URL = 'https://dahua.metcfire.com.tw/api/CRUDTest';
+
+const blockData = ref([]);
+const tableConfig = [
   {
     label: '姓名',
     name: 'name',
@@ -105,8 +97,8 @@ const tableConfig = ref([
     field: 'age',
     align: 'left',
   },
-]);
-const tableButtons = ref([
+];
+const tableButtons = [
   {
     label: '編輯',
     icon: 'edit',
@@ -117,15 +109,102 @@ const tableButtons = ref([
     icon: 'delete',
     status: 'delete',
   },
-]);
-
+];
 const tempData = ref({
   name: '',
   age: '',
 });
-function handleClickOption(btn, data) {
-  // ...
+
+async function fetchData() {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/a`);
+    blockData.value = response.data || [];
+  } catch (error) {
+    console.error('取得資料失敗');
+  }
 }
+
+async function createData() {
+  if (!tempData.value.name || !tempData.value.age) {
+    alert('請填寫姓名與年齡');
+    return;
+  }
+
+  try {
+    await axios.post(
+      API_BASE_URL,
+      {
+        name: tempData.value.name,
+        age: tempData.value.age,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    tempData.value = {
+      name: '',
+      age: '',
+    };
+    await fetchData();
+  } catch (error) {
+    console.error('新增資料失敗');
+  }
+}
+
+async function handleEdit(row) {
+  const newName = prompt('請輸入新姓名', row.name);
+  const newAge = prompt('請輸入新年齡', row.age);
+  if (newName && newAge) {
+    try {
+      const response = await axios.patch(
+        `${API_BASE_URL}`,
+        {
+          id: row.id,
+          name: newName,
+          age: newAge,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const index = blockData.value.findIndex((item) => item.id === row.id);
+      if (index !== -1) {
+        blockData.value[index].name = newName;
+        blockData.value[index].age = newAge;
+      }
+    } catch (error) {
+      console.error('更新資料失敗');
+    }
+  }
+}
+
+async function handleDelete(row) {
+  if (!confirm('確定刪除此筆資料?')) return;
+  try {
+    const response = await axios.delete(`${API_BASE_URL}/${row.id}`);
+
+    fetchData();
+  } catch (error) {
+    console.error('刪除資料失敗');
+  }
+}
+
+async function handleClickOption(btn, row) {
+  if (btn.status === 'edit') {
+    await handleEdit(row);
+  } else if (btn.status === 'delete') {
+    await handleDelete(row);
+  }
+}
+
+onMounted(() => {
+  fetchData();
+});
 </script>
 
 <style lang="scss" scoped>
